@@ -1,6 +1,6 @@
 [package]
 name = "json-workbench"
-version = "0.1.3"
+version = "0.1.6"
 description = "Offline JSON formatter, JSONPath explorer and escaping toolbox"
 authors = ["JSON Workbench contributors"]
 edition = "2021"

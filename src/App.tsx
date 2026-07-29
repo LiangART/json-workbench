@@ -1,5 +1,6 @@
-import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, KeyboardEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import {
@@ -17,6 +18,8 @@ type ResultView = "text" | "tree";
 type Theme = "light" | "dark";
 type ToastTone = "success" | "error";
 type Toast = { message: string; tone: ToastTone } | null;
+type WindowAction = "minimize" | "toggleMaximize" | "close";
+type ResizeDirection = "North" | "NorthEast" | "East" | "SouthEast" | "South" | "SouthWest" | "West" | "NorthWest";
 type JsonPathQueryState =
   | { status: "idle" }
   | { status: "success"; result: string; count: number }
@@ -36,6 +39,16 @@ const fontSizeDefaultVersion = "22";
 const minEditorFontSize = 11;
 const maxEditorFontSize = 26;
 const defaultEditorFontSize = 22;
+const resizeHandles: Array<{ direction: ResizeDirection; position: string }> = [
+  { direction: "North", position: "north" },
+  { direction: "NorthEast", position: "north-east" },
+  { direction: "East", position: "east" },
+  { direction: "SouthEast", position: "south-east" },
+  { direction: "South", position: "south" },
+  { direction: "SouthWest", position: "south-west" },
+  { direction: "West", position: "west" },
+  { direction: "NorthWest", position: "north-west" },
+];
 
 const sampleJson = `{
   "store": {
@@ -101,6 +114,7 @@ function JsonTreeNode({ label, value, depth = 0 }: { label?: string; value: unkn
 }
 
 function App() {
+  const appWindow = useMemo(() => isTauri() ? getCurrentWindow() : null, []);
   const [theme, setTheme] = useState<Theme>(() => {
     const savedTheme = window.localStorage.getItem(themeStorageKey);
     return savedTheme === "dark" ? "dark" : "light";
@@ -122,6 +136,7 @@ function App() {
   const [jsonPath, setJsonPath] = useState("");
   const [indentSize, setIndentSize] = useState<2 | 4>(2);
   const [liveSync, setLiveSync] = useState(true);
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
@@ -164,6 +179,39 @@ function App() {
     window.localStorage.setItem(fontSizeStorageKey, String(editorFontSize));
     window.localStorage.setItem(fontSizeDefaultVersionStorageKey, fontSizeDefaultVersion);
   }, [editorFontSize]);
+
+  useEffect(() => {
+    if (!appWindow) {
+      return;
+    }
+
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    const syncMaximizedState = async () => {
+      try {
+        const maximized = await appWindow.isMaximized();
+        if (active) {
+          setIsWindowMaximized(maximized);
+        }
+      } catch {
+        // Keep the last known state if the window manager cannot report it.
+      }
+    };
+
+    void syncMaximizedState();
+    void appWindow.onResized(() => void syncMaximizedState()).then((stopListening) => {
+      if (active) {
+        unlisten = stopListening;
+      } else {
+        stopListening();
+      }
+    }).catch(() => undefined);
+
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [appWindow]);
 
   useEffect(() => {
     if (!jsonPath.trim() && !liveSync) {
@@ -222,6 +270,28 @@ function App() {
     window.clearTimeout(toastTimerRef.current);
     setToast({ message, tone });
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2400);
+  }
+
+  async function runWindowAction(action: WindowAction) {
+    if (!appWindow) {
+      return;
+    }
+    try {
+      await appWindow[action]();
+      if (action === "toggleMaximize") {
+        setIsWindowMaximized(await appWindow.isMaximized());
+      }
+    } catch {
+      showToast("窗口操作失败", "error");
+    }
+  }
+
+  function startWindowResize(direction: ResizeDirection, event: MouseEvent<HTMLDivElement>) {
+    if (!appWindow || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    void appWindow.startResizeDragging(direction).catch(() => showToast("窗口缩放失败", "error"));
   }
 
   function runTransform(transform: (input: string) => string, successMessage: string) {
@@ -398,7 +468,7 @@ function App() {
 
   return (
     <main className="app-shell" onKeyDown={handleShortcut}>
-      <section className="document-tabs-bar">
+      <section className={`document-tabs-bar ${appWindow ? "tauri-titlebar" : ""}`}>
         <div className="document-tabs" role="tablist" aria-label="JSON 文件标签页">
           {documents.map((document) => (
             <div className={`document-tab ${document.id === activeDocumentId ? "active" : ""}`} key={document.id}>
@@ -427,6 +497,45 @@ function App() {
           <span aria-hidden="true">＋</span>
           新建
         </button>
+        {appWindow && (
+          <>
+            <div
+              className="window-drag-region"
+              data-tauri-drag-region
+              title="拖动窗口"
+              onDoubleClick={() => void runWindowAction("toggleMaximize")}
+            />
+            <div className="window-controls" aria-label="窗口控制">
+              <button
+                className="window-control-button"
+                aria-label="最小化窗口"
+                title="最小化"
+                onClick={() => void runWindowAction("minimize")}
+              >
+                <span aria-hidden="true">−</span>
+              </button>
+              <button
+                className="window-control-button"
+                aria-label={isWindowMaximized ? "还原窗口" : "最大化窗口"}
+                title={isWindowMaximized ? "还原" : "最大化"}
+                onClick={() => void runWindowAction("toggleMaximize")}
+              >
+                <span
+                  className={`window-state-icon ${isWindowMaximized ? "restore" : "maximize"}`}
+                  aria-hidden="true"
+                />
+              </button>
+              <button
+                className="window-control-button close-window-button"
+                aria-label="关闭窗口"
+                title="关闭"
+                onClick={() => void runWindowAction("close")}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="toolbar">
@@ -579,6 +688,15 @@ function App() {
       </footer>
 
       {toast && <div className={`toast ${toast.tone}`}>{toast.message}</div>}
+
+      {appWindow && resizeHandles.map(({ direction, position }) => (
+        <div
+          className={`window-resize-handle ${position}`}
+          key={direction}
+          aria-hidden="true"
+          onMouseDown={(event) => startWindowResize(direction, event)}
+        />
+      ))}
     </main>
   );
 }

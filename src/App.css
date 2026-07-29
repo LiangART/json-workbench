@@ -219,6 +219,7 @@ summary:focus-visible {
 }
 
 .document-tabs-bar {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 7px;
@@ -226,6 +227,11 @@ summary:focus-visible {
   padding: 5px 14px 0;
   border-bottom: 1px solid var(--border);
   background: var(--toolbar-background);
+  user-select: none;
+}
+
+.document-tabs-bar.tauri-titlebar {
+  padding-right: 120px;
 }
 
 .document-tabs {
@@ -341,6 +347,164 @@ summary:focus-visible {
 .new-document-button:hover {
   border-color: var(--accent-border);
   background: var(--accent-soft);
+}
+
+.window-drag-region {
+  align-self: stretch;
+  min-width: 18px;
+  flex: 1 1 auto;
+  margin-top: -5px;
+}
+
+.window-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  width: 120px;
+  height: 37px;
+}
+
+.window-control-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 37px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.window-control-button:hover {
+  color: var(--text-strong);
+  background: var(--surface-hover);
+}
+
+.window-control-button.close-window-button:hover {
+  color: #fff;
+  background: var(--danger);
+}
+
+.window-state-icon {
+  position: relative;
+  width: 14px;
+  height: 13px;
+}
+
+.window-state-icon::before,
+.window-state-icon.restore::after {
+  content: "";
+  position: absolute;
+  border: 1.4px solid currentColor;
+  background: var(--toolbar-background);
+}
+
+.window-state-icon.maximize::before {
+  top: 1px;
+  left: 1px;
+  width: 9px;
+  height: 9px;
+}
+
+.window-state-icon.restore::before {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+}
+
+.window-state-icon.restore::after {
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+}
+
+.window-control-button:hover .window-state-icon::before,
+.window-control-button:hover .window-state-icon.restore::after {
+  background: var(--surface-hover);
+}
+
+.window-resize-handle {
+  position: fixed;
+  z-index: 30;
+}
+
+.window-resize-handle.north,
+.window-resize-handle.south {
+  left: 7px;
+  width: calc(100% - 14px);
+  height: 5px;
+  cursor: ns-resize;
+}
+
+.window-resize-handle.north {
+  top: 0;
+}
+
+.window-resize-handle.south {
+  bottom: 0;
+}
+
+.window-resize-handle.east,
+.window-resize-handle.west {
+  top: 7px;
+  width: 5px;
+  height: calc(100% - 14px);
+  cursor: ew-resize;
+}
+
+.window-resize-handle.east {
+  right: 0;
+}
+
+.window-resize-handle.west {
+  left: 0;
+}
+
+.window-resize-handle.north-east,
+.window-resize-handle.south-east,
+.window-resize-handle.south-west,
+.window-resize-handle.north-west {
+  width: 8px;
+  height: 8px;
+}
+
+.window-resize-handle.north-east,
+.window-resize-handle.south-west {
+  cursor: nesw-resize;
+}
+
+.window-resize-handle.south-east,
+.window-resize-handle.north-west {
+  cursor: nwse-resize;
+}
+
+.window-resize-handle.north-east,
+.window-resize-handle.north-west {
+  top: 0;
+}
+
+.window-resize-handle.south-east,
+.window-resize-handle.south-west {
+  bottom: 0;
+}
+
+.window-resize-handle.north-east,
+.window-resize-handle.south-east {
+  right: 0;
+}
+
+.window-resize-handle.south-west,
+.window-resize-handle.north-west {
+  left: 0;
 }
 
 button.primary-button {
