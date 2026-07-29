@@ -289,7 +289,7 @@ function App() {
   }
 
   function startWindowResize(direction: ResizeDirection, event: MouseEvent<HTMLDivElement>) {
-    if (!appWindow || event.button !== 0) {
+    if (!appWindow || isWindowMaximized || event.button !== 0) {
       return;
     }
     event.preventDefault();
@@ -611,7 +611,10 @@ function App() {
             placeholder="在这里粘贴 JSON，或打开本地文件…"
             spellCheck={false}
           />
-          <div className={`inline-jsonpath ${jsonPathQuery.status === "error" ? "invalid" : ""}`}>
+          <div
+            className={`inline-jsonpath ${jsonPathQuery.status === "error" ? "invalid" : ""}`}
+            data-tauri-drag-region="false"
+          >
             <label htmlFor="jsonpath-input">JSONPath</label>
             <input
               id="jsonpath-input"
@@ -691,7 +694,7 @@ function App() {
 
       {toast && <div className={`toast ${toast.tone}`}>{toast.message}</div>}
 
-      {appWindow && resizeHandles.map(({ direction, position }) => (
+      {appWindow && !isWindowMaximized && resizeHandles.map(({ direction, position }) => (
         <div
           className={`window-resize-handle ${position}`}
           key={direction}

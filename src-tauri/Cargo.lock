@@ -1818,7 +1818,7 @@ dependencies = [
 
 [[package]]
 name = "json-workbench"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "serde",
  "serde_json",
