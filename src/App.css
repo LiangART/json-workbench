@@ -37,11 +37,12 @@
   --switch-background: #ddd5c0;
   --switch-knob: #839496;
   --switch-active: rgba(38, 139, 210, 0.22);
-  --tree-key: #6c71c4;
-  --tree-string: #859900;
-  --tree-number: #b58900;
-  --tree-boolean: #268bd2;
-  --tree-null: #839496;
+  --syntax-key: #92278f;
+  --syntax-string: #3ab54a;
+  --syntax-number: #25aae2;
+  --syntax-boolean: #f98280;
+  --syntax-null: #f1592a;
+  --syntax-link: #42aeb3;
   --toast-success-background: #f3f3d5;
   --toast-success-text: #586e00;
   --toast-error-background: #fae5df;
@@ -85,11 +86,12 @@
   --switch-background: #164650;
   --switch-knob: #839496;
   --switch-active: rgba(38, 139, 210, 0.28);
-  --tree-key: #6c71c4;
-  --tree-string: #859900;
-  --tree-number: #b58900;
-  --tree-boolean: #268bd2;
-  --tree-null: #657b83;
+  --syntax-key: #d889d4;
+  --syntax-string: #6bd978;
+  --syntax-number: #5bc9ef;
+  --syntax-boolean: #ff9d9b;
+  --syntax-null: #ff8b69;
+  --syntax-link: #61d2d6;
   --toast-success-background: #193f3d;
   --toast-success-text: #b7ca4a;
   --toast-error-background: #4a2f34;
@@ -760,8 +762,113 @@ button.primary-button:hover {
   color: var(--faint);
 }
 
-.result-editor {
-  color: var(--text-strong);
+.result-code-editor-shell {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--editor-background);
+}
+
+.result-code-editor-shell .cm-editor {
+  height: 100%;
+  color: var(--text);
+  background: var(--editor-background);
+  font-variant-ligatures: none;
+}
+
+.result-code-editor-shell .cm-editor.cm-focused {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+
+.result-code-editor-shell .cm-scroller {
+  overflow: auto;
+  font: var(--editor-font-size)/1.68 var(--code);
+}
+
+.result-code-editor-shell .cm-content {
+  min-width: max-content;
+  padding: 15px 0 30px;
+  caret-color: var(--accent-bright);
+}
+
+.result-code-editor-shell .cm-line {
+  padding: 0 16px 0 5px;
+}
+
+.result-code-editor-shell .cm-gutters {
+  padding-left: 5px;
+  border: 0;
+  color: var(--muted);
+  background: var(--editor-background);
+}
+
+.result-code-editor-shell .cm-foldGutter {
+  width: 27px;
+}
+
+.result-code-editor-shell .cm-foldGutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  padding: 0;
+}
+
+.json-fold-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: var(--editor-background);
+  font: 700 14px/1 var(--code);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.json-fold-marker.expanded {
+  color: var(--danger);
+}
+
+.json-fold-marker.collapsed {
+  color: var(--syntax-number);
+}
+
+.json-fold-marker:hover {
+  background: var(--accent-soft);
+}
+
+.json-fold-placeholder {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 4px;
+  padding: 0 6px;
+  border: 1px dashed var(--accent-border);
+  border-radius: 3px;
+  color: var(--muted);
+  background: var(--accent-soft);
+  font-size: 0.72em;
+  line-height: 1.55;
+  cursor: pointer;
+}
+
+.result-code-editor-shell .cm-json-link {
+  color: var(--syntax-link);
+  font-weight: 700;
+}
+
+.result-code-editor-shell .cm-selectionBackground,
+.result-code-editor-shell .cm-content ::selection {
+  background: var(--selection) !important;
+}
+
+.result-code-editor-shell .cm-placeholder {
+  color: var(--faint);
 }
 
 .panel-footer {
@@ -930,28 +1037,42 @@ button.primary-button:hover {
 }
 
 .tree-key {
-  color: var(--tree-key);
+  color: var(--syntax-key);
+  font-weight: 700;
 }
 
 .tree-meta {
   color: var(--muted);
 }
 
+.tree-string,
+.tree-link,
+.tree-number,
+.tree-boolean,
+.tree-null,
+.tree-undefined {
+  font-weight: 700;
+}
+
 .tree-string {
-  color: var(--tree-string);
+  color: var(--syntax-string);
+}
+
+.tree-link {
+  color: var(--syntax-link);
 }
 
 .tree-number {
-  color: var(--tree-number);
+  color: var(--syntax-number);
 }
 
 .tree-boolean {
-  color: var(--tree-boolean);
+  color: var(--syntax-boolean);
 }
 
 .tree-null,
 .tree-undefined {
-  color: var(--tree-null);
+  color: var(--syntax-null);
 }
 
 .app-footer {

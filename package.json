@@ -1,7 +1,7 @@
 {
   "name": "json-workbench",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,16 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.7",
+    "@lezer/highlight": "^1.2.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2",
+    "codemirror": "^6.0.2",
     "jsonpath-plus": "^10.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

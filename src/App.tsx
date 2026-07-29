@@ -3,6 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { ResultJsonEditor } from "./components/ResultJsonEditor";
 import {
   formatJson,
   getJsonStats,
@@ -84,12 +85,13 @@ function JsonTreeNode({ label, value, depth = 0 }: { label?: string; value: unkn
   const isObject = typeof value === "object" && value !== null;
   const entries = isObject ? Object.entries(value as Record<string, unknown>) : [];
   const typeName = Array.isArray(value) ? "array" : typeof value;
+  const valueTypeName = typeof value === "string" && /^https?:\/\//i.test(value) ? "link" : value === null ? "null" : typeName;
 
   if (!isObject) {
     return (
       <div className="tree-leaf">
         {label !== undefined && <span className="tree-key">{label}: </span>}
-        <span className={`tree-value tree-${value === null ? "null" : typeName}`}>
+        <span className={`tree-value tree-${valueTypeName}`}>
           {typeof value === "string" ? `"${value}"` : String(value)}
         </span>
       </div>
@@ -672,7 +674,7 @@ function App() {
           {resultView === "tree" && parsedResult.ok ? (
             <div className="tree-view"><JsonTreeNode value={parsedResult.value} /></div>
           ) : (
-            <textarea className="code-editor result-editor" value={result} onChange={(event) => updateResult(event.target.value)} placeholder="处理结果会显示在这里…" spellCheck={false} />
+            <ResultJsonEditor value={result} onChange={updateResult} />
           )}
           <footer className="panel-footer">
             <span>{resultStats.lines} 行</span>
