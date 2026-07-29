@@ -17,7 +17,7 @@ const input = '{"users":[{"name":"张三","age":20},{"name":"李四","age":30}],
 
 describe("JSON formatting", () => {
   it("formats and minifies valid JSON", () => {
-    expect(formatJson('{"name":"张三"}', 2)).toBe('{\n  "name": "张三"\n}');
+    expect(formatJson('{"name":"张三"}')).toBe('{\n    "name": "张三"\n}');
     expect(minifyJson(' { "name": "张三" } ')).toBe('{"name":"张三"}');
   });
 
@@ -29,7 +29,7 @@ describe("JSON formatting", () => {
 
   it("sorts object keys recursively while preserving arrays", () => {
     expect(sortJsonKeys('{"z":{"b":2,"a":1},"a":[{"d":4,"c":3}]}')).toBe(
-      '{\n  "a": [\n    {\n      "c": 3,\n      "d": 4\n    }\n  ],\n  "z": {\n    "a": 1,\n    "b": 2\n  }\n}',
+      '{\n    "a": [\n        {\n            "c": 3,\n            "d": 4\n        }\n    ],\n    "z": {\n        "a": 1,\n        "b": 2\n    }\n}',
     );
   });
 });

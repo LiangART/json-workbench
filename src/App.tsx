@@ -7,6 +7,7 @@ import { ResultJsonEditor } from "./components/ResultJsonEditor";
 import {
   formatJson,
   getJsonStats,
+  jsonIndentSize,
   minifyAndEscapeJson,
   minifyJson,
   parseJson,
@@ -136,7 +137,6 @@ function App() {
   const [documents, setDocuments] = useState<JsonDocument[]>(() => [createJsonDocument("未命名.json")]);
   const [activeDocumentId, setActiveDocumentId] = useState(() => documents[0].id);
   const [jsonPath, setJsonPath] = useState("");
-  const [indentSize, setIndentSize] = useState<2 | 4>(2);
   const [liveSync, setLiveSync] = useState(true);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
@@ -159,7 +159,7 @@ function App() {
       const queryResult = queryJsonPath(source, jsonPath);
       return {
         status: "success",
-        result: JSON.stringify(queryResult, null, indentSize),
+        result: JSON.stringify(queryResult, null, jsonIndentSize),
         count: queryResult.length,
       };
     } catch (error) {
@@ -168,7 +168,7 @@ function App() {
         message: error instanceof Error ? error.message : "JSONPath 查询失败",
       };
     }
-  }, [indentSize, jsonPath, source]);
+  }, [jsonPath, source]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -345,7 +345,7 @@ function App() {
   }
 
   function handleFormat() {
-    runTransform((input) => formatJson(input, indentSize), "JSON 已格式化");
+    runTransform(formatJson, "JSON 已格式化");
   }
 
   function applyResultToSource() {
@@ -545,14 +545,8 @@ function App() {
           <button onClick={handleFormat}>格式化</button>
           <button onClick={() => void copyTransformedResult(minifyJson, "压缩结果已复制")}>压缩并复制</button>
           <button onClick={() => void copyTransformedResult(minifyAndEscapeJson, "压缩转义结果已复制")}>压缩转义并复制</button>
-          <button onClick={() => runTransform((input) => sortJsonKeys(input, indentSize), "键名已排序")}>键排序</button>
-          <label className="indent-control">
-            缩进
-            <select value={indentSize} onChange={(event) => setIndentSize(Number(event.target.value) as 2 | 4)}>
-              <option value={2}>2 空格</option>
-              <option value={4}>4 空格</option>
-            </select>
-          </label>
+          <button onClick={() => runTransform(sortJsonKeys, "键名已排序")}>键排序</button>
+          <span className="indent-control">缩进 {jsonIndentSize} 空格</span>
         </div>
         <div className="toolbar-group toolbar-right">
           <input ref={fileInputRef} type="file" accept=".json,.jsonl,.txt,application/json,text/plain" hidden onChange={handleBrowserFile} />

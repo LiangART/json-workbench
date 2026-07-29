@@ -756,8 +756,8 @@ button.primary-button:hover {
   color: var(--text);
   outline: none;
   background: var(--editor-background);
-  font: var(--editor-font-size)/1.68 var(--code);
-  tab-size: 2;
+  font: var(--editor-font-size)/1.5 var(--code);
+  tab-size: 4;
   caret-color: var(--accent-bright);
 }
 
@@ -792,7 +792,7 @@ button.primary-button:hover {
 
 .result-code-editor-shell .cm-scroller {
   overflow: auto;
-  font: var(--editor-font-size)/1.68 var(--code);
+  font: var(--editor-font-size)/1.5 var(--code);
 }
 
 .result-code-editor-shell .cm-content {
@@ -867,6 +867,11 @@ button.primary-button:hover {
 .result-code-editor-shell .cm-json-link {
   color: var(--syntax-link);
   font-weight: 700;
+}
+
+.result-code-editor-shell .cm-indent-guide {
+  box-shadow: inset 1px 0 0 var(--accent-border);
+  letter-spacing: 0.14em;
 }
 
 .result-code-editor-shell .cm-selectionBackground,
@@ -1028,7 +1033,7 @@ button.primary-button:hover {
   padding: 14px 16px 30px;
   color: var(--text);
   background: var(--editor-background);
-  font: var(--editor-font-size)/1.75 var(--code);
+  font: var(--editor-font-size)/1.5 var(--code);
 }
 
 .tree-branch summary {
@@ -1038,8 +1043,8 @@ button.primary-button:hover {
 }
 
 .tree-children {
-  margin-left: 9px;
-  padding-left: 15px;
+  margin-left: 14px;
+  padding-left: 22px;
   border-left: 1px solid var(--border);
 }
 

@@ -3,6 +3,8 @@ import { JSONPath } from "jsonpath-plus";
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
+export const jsonIndentSize = 4;
+
 export type JsonParseResult =
   | { ok: true; value: unknown }
   | { ok: false; error: { message: string; line?: number; column?: number } };
@@ -42,8 +44,8 @@ function requireParsedJson(input: string): JsonValue {
   return parsed.value as JsonValue;
 }
 
-export function formatJson(input: string, indent = 2): string {
-  return JSON.stringify(requireParsedJson(input), null, indent);
+export function formatJson(input: string): string {
+  return JSON.stringify(requireParsedJson(input), null, jsonIndentSize);
 }
 
 export function minifyJson(input: string): string {
@@ -64,8 +66,8 @@ function sortValue(value: unknown): unknown {
   return value;
 }
 
-export function sortJsonKeys(input: string, indent = 2): string {
-  return JSON.stringify(sortValue(requireParsedJson(input)), null, indent);
+export function sortJsonKeys(input: string): string {
+  return JSON.stringify(sortValue(requireParsedJson(input)), null, jsonIndentSize);
 }
 
 export function queryJsonPath(input: string, path: string): unknown[] {
