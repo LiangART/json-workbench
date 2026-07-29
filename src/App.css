@@ -263,6 +263,7 @@ summary:focus-visible {
   background: var(--surface-hover);
 }
 
+
 .document-tab.active {
   border-color: var(--border);
   color: var(--text-strong);
