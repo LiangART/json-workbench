@@ -1,4 +1,4 @@
-import { ChangeEvent, KeyboardEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, ClipboardEvent, KeyboardEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -82,6 +82,14 @@ function createJsonDocument(name: string, content = ""): JsonDocument {
   };
 }
 
+function formatJsonOrOriginal(input: string): string {
+  try {
+    return formatJson(input);
+  } catch {
+    return input;
+  }
+}
+
 function JsonTreeNode({ label, value, depth = 0 }: { label?: string; value: unknown; depth?: number }) {
   const isObject = typeof value === "object" && value !== null;
   const entries = isObject ? Object.entries(value as Record<string, unknown>) : [];
@@ -143,6 +151,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
   const nextUntitledNumberRef = useRef(2);
+  const autoFormattedSourceRef = useRef<{ documentId: string; source: string } | null>(null);
 
   const activeDocument = documents.find((document) => document.id === activeDocumentId) ?? documents[0];
   const { source, result, resultView, name: currentFile } = activeDocument;
@@ -219,9 +228,12 @@ function App() {
     if (!jsonPath.trim() && !liveSync) {
       return;
     }
+    const shouldAutoFormatResult = !jsonPath.trim()
+      && autoFormattedSourceRef.current?.documentId === activeDocumentId
+      && autoFormattedSourceRef.current.source === source;
     const nextResult = jsonPath.trim()
       ? jsonPathQuery.status === "success" ? jsonPathQuery.result : ""
-      : source;
+      : shouldAutoFormatResult ? formatJsonOrOriginal(source) : source;
     setDocuments((currentDocuments) => currentDocuments.map((document) => {
       if (document.id !== activeDocumentId || document.source !== source) {
         return document;
@@ -315,12 +327,34 @@ function App() {
     }
   }
 
-  function updateSource(value: string) {
+  function updateSource(value: string, autoFormatResult = false) {
+    const shouldAutoFormatResult = autoFormatResult && liveSync && !jsonPath.trim();
+    autoFormattedSourceRef.current = shouldAutoFormatResult
+      ? { documentId: activeDocumentId, source: value }
+      : null;
     updateActiveDocument((document) => ({
       ...document,
       source: value,
-      ...(liveSync && !jsonPath.trim() ? { result: value, resultView: "text" as const } : {}),
+      ...(liveSync && !jsonPath.trim()
+        ? { result: shouldAutoFormatResult ? formatJsonOrOriginal(value) : value, resultView: "text" as const }
+        : {}),
     }));
+  }
+
+  function handleSourcePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    event.preventDefault();
+    const editor = event.currentTarget;
+    const pastedText = event.clipboardData.getData("text/plain");
+    const selectionStart = editor.selectionStart;
+    const selectionEnd = editor.selectionEnd;
+    const nextSource = `${source.slice(0, selectionStart)}${pastedText}${source.slice(selectionEnd)}`;
+    const nextCursorPosition = selectionStart + pastedText.length;
+
+    updateSource(nextSource, true);
+    window.requestAnimationFrame(() => {
+      editor.focus();
+      editor.setSelectionRange(nextCursorPosition, nextCursorPosition);
+    });
   }
 
   function updateResult(value: string) {
@@ -602,6 +636,7 @@ function App() {
             className="code-editor"
             value={source}
             onChange={(event) => updateSource(event.target.value)}
+            onPaste={handleSourcePaste}
             placeholder="在这里粘贴 JSON，或打开本地文件…"
             spellCheck={false}
           />
