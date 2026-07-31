@@ -1,16 +1,46 @@
 import { json } from "@codemirror/lang-json";
-import { codeFolding, foldGutter, foldKeymap, HighlightStyle, indentUnit, syntaxHighlighting } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
-import { Decoration, EditorView, keymap, MatchDecorator, placeholder, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import {
+  codeFolding,
+  foldGutter,
+  foldKeymap,
+  foldService,
+  HighlightStyle,
+  indentUnit,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import {
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  getSearchQuery,
+  openSearchPanel,
+  search,
+  SearchQuery,
+  setSearchQuery,
+} from "@codemirror/search";
+import { EditorState, type Text } from "@codemirror/state";
+import {
+  Decoration,
+  EditorView,
+  keymap,
+  MatchDecorator,
+  placeholder,
+  ViewPlugin,
+  type DecorationSet,
+  type Panel,
+  type ViewUpdate,
+} from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { minimalSetup } from "codemirror";
 import { useEffect, useRef } from "react";
-import { getJsonFoldSummary, type JsonFoldSummary } from "../lib/jsonFold";
+import { buildJsonFoldIndex, getJsonFoldSummary, type JsonFoldRange, type JsonFoldSummary } from "../lib/jsonFold";
 import { jsonIndentSize } from "../lib/jsonTools";
 
 type ResultJsonEditorProps = {
   value: string;
   onChange: (value: string) => void;
+  searchRequest: number | null;
+  onSearchRequestHandled: () => void;
 };
 
 const jsonHighlightStyle = HighlightStyle.define([
@@ -94,7 +124,19 @@ function createFoldMarker(isOpen: boolean) {
   return marker;
 }
 
+const foldIndexCache = new WeakMap<Text, ReadonlyMap<number, JsonFoldRange>>();
+
+function getJsonFoldRange(state: EditorState, lineStart: number): JsonFoldRange | null {
+  let foldIndex = foldIndexCache.get(state.doc);
+  if (!foldIndex) {
+    foldIndex = buildJsonFoldIndex(state.doc.toString());
+    foldIndexCache.set(state.doc, foldIndex);
+  }
+  return foldIndex.get(lineStart) ?? null;
+}
+
 const foldingExtensions = [
+  foldService.of((state, lineStart) => getJsonFoldRange(state, lineStart)),
   foldGutter({ markerDOM: createFoldMarker }),
   codeFolding({
     preparePlaceholder(state, range) {
@@ -114,12 +156,171 @@ const foldingExtensions = [
   keymap.of(foldKeymap),
 ];
 
-export function ResultJsonEditor({ value, onChange }: ResultJsonEditorProps) {
+class ResultSearchPanel implements Panel {
+  readonly dom: HTMLElement;
+  readonly top = true;
+  private query: SearchQuery;
+  private readonly searchField: HTMLInputElement;
+  private readonly matchCountField: HTMLOutputElement;
+  private readonly caseField: HTMLInputElement;
+  private readonly wordField: HTMLInputElement;
+  private matchCountTimer: number | undefined;
+
+  constructor(private readonly view: EditorView) {
+    this.query = getSearchQuery(view.state);
+    this.searchField = document.createElement("input");
+    this.searchField.className = "result-search-input";
+    this.searchField.type = "search";
+    this.searchField.value = this.query.search;
+    this.searchField.placeholder = "在结果中查询";
+    this.searchField.setAttribute("aria-label", "查询右侧 JSON 结果");
+    this.searchField.setAttribute("main-field", "true");
+    this.searchField.spellcheck = false;
+    this.searchField.addEventListener("input", this.commit);
+
+    this.matchCountField = document.createElement("output");
+    this.matchCountField.className = "result-search-count";
+    this.matchCountField.textContent = "0 项";
+    this.matchCountField.setAttribute("aria-live", "polite");
+
+    this.caseField = this.createOption("区分大小写", this.query.caseSensitive);
+    this.wordField = this.createOption("全字匹配", this.query.wholeWord);
+
+    this.dom = document.createElement("div");
+    this.dom.className = "result-search-panel";
+    this.dom.append(
+      this.searchField,
+      this.matchCountField,
+      this.createButton("↑", "上一个匹配项", () => findPrevious(this.view)),
+      this.createButton("↓", "下一个匹配项", () => findNext(this.view)),
+      this.caseField.parentElement!,
+      this.wordField.parentElement!,
+      this.createButton("×", "关闭查询", () => closeSearchPanel(this.view), "result-search-close"),
+    );
+    this.dom.addEventListener("keydown", this.handleKeyDown);
+    this.scheduleMatchCount();
+  }
+
+  mount() {
+    this.searchField.select();
+  }
+
+  update(update: ViewUpdate) {
+    const nextQuery = getSearchQuery(update.state);
+    const queryChanged = !nextQuery.eq(this.query);
+    if (queryChanged) {
+      this.query = nextQuery;
+      this.searchField.value = nextQuery.search;
+      this.caseField.checked = nextQuery.caseSensitive;
+      this.wordField.checked = nextQuery.wholeWord;
+    }
+    if (queryChanged || update.docChanged) {
+      this.scheduleMatchCount();
+    }
+  }
+
+  destroy() {
+    window.clearTimeout(this.matchCountTimer);
+    this.searchField.removeEventListener("input", this.commit);
+    this.caseField.removeEventListener("change", this.commit);
+    this.wordField.removeEventListener("change", this.commit);
+    this.dom.removeEventListener("keydown", this.handleKeyDown);
+  }
+
+  private readonly commit = () => {
+    const nextQuery = new SearchQuery({
+      search: this.searchField.value,
+      caseSensitive: this.caseField.checked,
+      wholeWord: this.wordField.checked,
+    });
+    if (!nextQuery.eq(this.query)) {
+      this.query = nextQuery;
+      this.view.dispatch({ effects: setSearchQuery.of(nextQuery) });
+      this.scheduleMatchCount();
+    }
+  };
+
+  private scheduleMatchCount() {
+    window.clearTimeout(this.matchCountTimer);
+    if (!this.query.valid) {
+      this.matchCountField.textContent = "0 项";
+      return;
+    }
+
+    this.matchCountField.textContent = "统计中…";
+    const query = this.query;
+    const state = this.view.state;
+    this.matchCountTimer = window.setTimeout(() => {
+      if (!query.eq(this.query) || state.doc !== this.view.state.doc) {
+        return;
+      }
+      const matches = query.getCursor(state);
+      let count = 0;
+      while (!matches.next().done) {
+        count += 1;
+      }
+      this.matchCountField.textContent = `${count.toLocaleString()} 项`;
+    }, 80);
+  }
+
+  private readonly handleKeyDown = (event: globalThis.KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSearchPanel(this.view);
+      return;
+    }
+    if (event.key === "Enter" && event.target === this.searchField) {
+      event.preventDefault();
+      (event.shiftKey ? findPrevious : findNext)(this.view);
+    }
+  };
+
+  private createOption(labelText: string, checked: boolean) {
+    const label = document.createElement("label");
+    label.className = "result-search-option";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = checked;
+    input.addEventListener("change", this.commit);
+    label.append(input, labelText);
+    return input;
+  }
+
+  private createButton(label: string, title: string, command: () => boolean, className = "") {
+    const button = document.createElement("button");
+    button.className = `result-search-button ${className}`.trim();
+    button.type = "button";
+    button.textContent = label;
+    button.title = title;
+    button.setAttribute("aria-label", title);
+    button.addEventListener("click", () => {
+      command();
+      if (title !== "关闭查询") {
+        this.searchField.focus();
+      }
+    });
+    return button;
+  }
+}
+
+function createResultSearchPanel(view: EditorView) {
+  return new ResultSearchPanel(view);
+}
+
+export function ResultJsonEditor({
+  value,
+  onChange,
+  searchRequest,
+  onSearchRequestHandled,
+}: ResultJsonEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
+  const onSearchRequestHandledRef = useRef(onSearchRequestHandled);
   const isApplyingExternalValueRef = useRef(false);
   onChangeRef.current = onChange;
+  onSearchRequestHandledRef.current = onSearchRequestHandled;
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -136,6 +337,7 @@ export function ResultJsonEditor({ value, onChange }: ResultJsonEditorProps) {
           EditorState.tabSize.of(jsonIndentSize),
           indentUnit.of(" ".repeat(jsonIndentSize)),
           ...foldingExtensions,
+          search({ top: true, createPanel: createResultSearchPanel }),
           syntaxHighlighting(jsonHighlightStyle),
           indentationGuides,
           linkHighlighting,
@@ -172,6 +374,15 @@ export function ResultJsonEditor({ value, onChange }: ResultJsonEditorProps) {
     });
     isApplyingExternalValueRef.current = false;
   }, [value]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (searchRequest === null || !editor) {
+      return;
+    }
+    openSearchPanel(editor);
+    onSearchRequestHandledRef.current();
+  }, [searchRequest]);
 
   return <div className="result-code-editor-shell" ref={containerRef} />;
 }

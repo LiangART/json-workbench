@@ -1,4 +1,15 @@
-import { ChangeEvent, ClipboardEvent, KeyboardEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  ClipboardEvent,
+  CSSProperties,
+  KeyboardEvent,
+  MouseEvent,
+  PointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -41,6 +52,9 @@ const fontSizeDefaultVersion = "22";
 const minEditorFontSize = 11;
 const maxEditorFontSize = 26;
 const defaultEditorFontSize = 22;
+const minimumPanelWidth = 240;
+const minimumPanelRatio = 0.2;
+const panelResizeKeyboardStep = 0.03;
 const resizeHandles: Array<{ direction: ResizeDirection; position: string }> = [
   { direction: "North", position: "north" },
   { direction: "NorthEast", position: "north-east" },
@@ -146,11 +160,18 @@ function App() {
   const [activeDocumentId, setActiveDocumentId] = useState(() => documents[0].id);
   const [jsonPath, setJsonPath] = useState("");
   const [liveSync, setLiveSync] = useState(true);
+  const [resultSearchRequest, setResultSearchRequest] = useState<number | null>(null);
+  const [panelSplitRatio, setPanelSplitRatio] = useState(0.5);
+  const [isPanelResizing, setIsPanelResizing] = useState(false);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const panelDividerRef = useRef<HTMLDivElement>(null);
+  const panelResizePointerIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
   const nextUntitledNumberRef = useRef(2);
+  const nextResultSearchRequestRef = useRef(1);
   const autoFormattedSourceRef = useRef<{ documentId: string; source: string } | null>(null);
 
   const activeDocument = documents.find((document) => document.id === activeDocumentId) ?? documents[0];
@@ -306,6 +327,68 @@ function App() {
     }
     event.preventDefault();
     void appWindow.startResizeDragging(direction).catch(() => showToast("窗口缩放失败", "error"));
+  }
+
+  function clampPanelSplitRatio(nextRatio: number) {
+    const workspaceWidth = workspaceRef.current?.getBoundingClientRect().width ?? 0;
+    const dividerWidth = panelDividerRef.current?.getBoundingClientRect().width ?? 29;
+    const availableWidth = workspaceWidth - dividerWidth;
+    const constrainedMinimumRatio = availableWidth > 0
+      ? Math.min(0.45, Math.max(minimumPanelRatio, minimumPanelWidth / availableWidth))
+      : minimumPanelRatio;
+    return Math.min(1 - constrainedMinimumRatio, Math.max(constrainedMinimumRatio, nextRatio));
+  }
+
+  function updatePanelSplitFromPointer(clientX: number) {
+    const workspaceBounds = workspaceRef.current?.getBoundingClientRect();
+    const dividerWidth = panelDividerRef.current?.getBoundingClientRect().width ?? 29;
+    if (!workspaceBounds || workspaceBounds.width <= dividerWidth) {
+      return;
+    }
+    const availableWidth = workspaceBounds.width - dividerWidth;
+    const leftPanelWidth = clientX - workspaceBounds.left - dividerWidth / 2;
+    setPanelSplitRatio(clampPanelSplitRatio(leftPanelWidth / availableWidth));
+  }
+
+  function startPanelResize(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || (event.target instanceof Element && event.target.closest("button"))) {
+      return;
+    }
+    event.preventDefault();
+    panelResizePointerIdRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsPanelResizing(true);
+    updatePanelSplitFromPointer(event.clientX);
+  }
+
+  function continuePanelResize(event: PointerEvent<HTMLDivElement>) {
+    if (panelResizePointerIdRef.current !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    updatePanelSplitFromPointer(event.clientX);
+  }
+
+  function finishPanelResize(event: PointerEvent<HTMLDivElement>) {
+    if (panelResizePointerIdRef.current !== event.pointerId) {
+      return;
+    }
+    panelResizePointerIdRef.current = null;
+    setIsPanelResizing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function resizePanelsWithKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+      return;
+    }
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? -1 : 1;
+    setPanelSplitRatio((currentRatio) => clampPanelSplitRatio(
+      currentRatio + direction * panelResizeKeyboardStep,
+    ));
   }
 
   function runTransform(transform: (input: string) => string, successMessage: string) {
@@ -492,6 +575,11 @@ function App() {
       event.preventDefault();
       handleFormat();
     }
+    if (!event.shiftKey && shortcutKey === "f") {
+      event.preventDefault();
+      updateActiveDocument((document) => ({ ...document, resultView: "text" }));
+      setResultSearchRequest(nextResultSearchRequestRef.current++);
+    }
     if (shortcutKey === "s") {
       event.preventDefault();
       void saveResult();
@@ -503,7 +591,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell" onKeyDown={handleShortcut}>
+    <main className={`app-shell ${isPanelResizing ? "panel-resizing" : ""}`} onKeyDown={handleShortcut}>
       <section className={`document-tabs-bar ${appWindow ? "tauri-titlebar" : ""}`}>
         <div className="document-tabs" role="tablist" aria-label="JSON 文件标签页">
           {documents.map((document) => (
@@ -620,7 +708,14 @@ function App() {
         </div>
       </section>
 
-      <section className="workspace">
+      <section
+        className="workspace"
+        ref={workspaceRef}
+        style={{
+          "--input-panel-size": `${panelSplitRatio}fr`,
+          "--result-panel-size": `${1 - panelSplitRatio}fr`,
+        } as CSSProperties}
+      >
         <article className="editor-panel input-panel">
           <div className="panel-header">
             <div>
@@ -670,7 +765,23 @@ function App() {
           </footer>
         </article>
 
-        <div className="panel-divider">
+        <div
+          className={`panel-divider ${isPanelResizing ? "resizing" : ""}`}
+          ref={panelDividerRef}
+          role="separator"
+          aria-label="调整左右面板宽度"
+          aria-orientation="vertical"
+          aria-valuemin={Math.round(minimumPanelRatio * 100)}
+          aria-valuemax={Math.round((1 - minimumPanelRatio) * 100)}
+          aria-valuenow={Math.round(panelSplitRatio * 100)}
+          tabIndex={0}
+          title="左右拖动调整面板宽度"
+          onKeyDown={resizePanelsWithKeyboard}
+          onPointerDown={startPanelResize}
+          onPointerMove={continuePanelResize}
+          onPointerUp={finishPanelResize}
+          onPointerCancel={finishPanelResize}
+        >
           <button title="将结果应用到输入区" onClick={applyResultToSource}>←</button>
         </div>
 
@@ -706,7 +817,12 @@ function App() {
           {resultView === "tree" && parsedResult.ok ? (
             <div className="tree-view"><JsonTreeNode value={parsedResult.value} /></div>
           ) : (
-            <ResultJsonEditor value={result} onChange={updateResult} />
+            <ResultJsonEditor
+              value={result}
+              onChange={updateResult}
+              searchRequest={resultSearchRequest}
+              onSearchRequestHandled={() => setResultSearchRequest(null)}
+            />
           )}
           <footer className="panel-footer">
             <span>{resultStats.lines} 行</span>
@@ -718,7 +834,7 @@ function App() {
 
       <footer className="app-footer">
         <span>所有数据仅在本机处理</span>
-        <span>快捷键：Ctrl+N 新建 · Ctrl+W 关闭 · Ctrl+Shift+F 格式化 · Ctrl+O 打开 · Ctrl+S 保存</span>
+        <span>快捷键：Ctrl+F 查询结果 · Ctrl+N 新建 · Ctrl+W 关闭 · Ctrl+Shift+F 格式化 · Ctrl+O 打开 · Ctrl+S 保存</span>
       </footer>
 
       {toast && <div className={`toast ${toast.tone}`}>{toast.message}</div>}

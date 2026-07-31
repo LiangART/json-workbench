@@ -615,7 +615,10 @@ button.primary-button:hover {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 29px minmax(0, 1fr);
+  grid-template-columns:
+    minmax(240px, var(--input-panel-size, 1fr))
+    29px
+    minmax(240px, var(--result-panel-size, 1fr));
   min-height: 0;
   margin: 12px 14px 8px;
 }
@@ -883,6 +886,98 @@ button.primary-button:hover {
   color: var(--faint);
 }
 
+.result-code-editor-shell .cm-panels-top {
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  background: var(--panel-header-background);
+}
+
+.result-search-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 42px;
+  padding: 6px 8px;
+  font: 12px/1.4 var(--code);
+}
+
+.result-search-input {
+  flex: 1 1 180px;
+  min-width: 120px;
+  height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  color: var(--text-strong);
+  background: var(--editor-background);
+}
+
+.result-search-input::placeholder {
+  color: var(--faint);
+}
+
+.result-search-count {
+  flex: 0 0 auto;
+  min-width: 52px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.result-search-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.result-search-button:hover {
+  border-color: var(--border-bright);
+  color: var(--text-strong);
+  background: var(--surface-hover);
+}
+
+.result-search-close {
+  margin-left: auto;
+  font-size: 17px;
+}
+
+.result-search-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.result-search-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.result-code-editor-shell .cm-searchMatch {
+  background: var(--success-soft);
+  outline: 1px solid var(--success);
+}
+
+.result-code-editor-shell .cm-searchMatch-selected {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+}
+
 .panel-footer {
   gap: 12px;
   padding: 0 12px;
@@ -905,6 +1000,9 @@ button.primary-button:hover {
   display: grid;
   place-items: center;
   position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
 }
 
 .panel-divider::before {
@@ -913,8 +1011,26 @@ button.primary-button:hover {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 1px;
+  width: 2px;
   background: var(--border);
+  transition: width 120ms ease, background-color 120ms ease;
+}
+
+.panel-divider:hover::before,
+.panel-divider:focus-visible::before,
+.panel-divider.resizing::before {
+  width: 4px;
+  background: var(--accent);
+}
+
+.panel-divider:focus-visible {
+  outline: none;
+}
+
+.app-shell.panel-resizing,
+.app-shell.panel-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .panel-divider button {

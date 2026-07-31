@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getJsonFoldSummary } from "./jsonFold";
+import { buildJsonFoldIndex, getJsonFoldSummary } from "./jsonFold";
 
 function getFoldRange(input: string, openingDelimiter: string, closingDelimiter: string) {
   return {
@@ -31,5 +31,43 @@ describe("JSON fold summaries", () => {
 
     expect(getJsonFoldSummary(objectInput, objectRange.from, objectRange.to)).toEqual({ type: "lines", count: 3 });
     expect(getJsonFoldSummary(invalidArray, invalidRange.from, invalidRange.to)).toEqual({ type: "lines", count: 3 });
+  });
+});
+
+describe("JSON fold index", () => {
+  it("indexes a large object even when its closing delimiter is far away", () => {
+    const fields = Array.from({ length: 1500 }, (_, index) => `            "field_${index}": ${index}`);
+    const input = `{
+    "step_list": [
+        {
+${fields.join(",\n")}
+        }
+    ]
+}`;
+    const objectLineStart = input.indexOf("        {");
+    const objectOpeningPosition = objectLineStart + 8;
+    const objectClosingPosition = input.lastIndexOf("        }") + 8;
+
+    expect(buildJsonFoldIndex(input).get(objectLineStart)).toEqual({
+      from: objectOpeningPosition + 1,
+      to: objectClosingPosition,
+    });
+  });
+
+  it("ignores brackets and escaped quotes inside strings", () => {
+    const input = `{
+    "content": "keep { [ \\\"text\\\" ] } intact",
+    "ability": {
+        "enabled": true
+    }
+}`;
+    const abilityLineStart = input.indexOf('    "ability"');
+    const abilityOpeningPosition = input.indexOf("{", abilityLineStart);
+    const abilityClosingPosition = input.indexOf("    }", abilityOpeningPosition) + 4;
+
+    expect(buildJsonFoldIndex(input).get(abilityLineStart)).toEqual({
+      from: abilityOpeningPosition + 1,
+      to: abilityClosingPosition,
+    });
   });
 });
